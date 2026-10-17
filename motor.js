@@ -25,9 +25,29 @@ async function api(path, options = {}) {
   return texto ? JSON.parse(texto) : null;
 }
 
-// SIMULADO: acá irá la llamada real a WhatsApp Cloud API
+// SIMULADO: busca datos, arma el mensaje y devuelve el texto para guardar en envios
 async function enviar(envio) {
-  return { ok: true, waMessageId: `SIM-${envio.id}` };
+  // Traemos los datos de la campaña (título, detalle, vigencia)
+  const camp = await api(`campanas?id=eq.${envio.campana_id}&select=variables`);
+  const variables = (camp && camp[0] && camp[0].variables) || {};
+
+  // Traemos el nombre del cliente
+  const cli = await api(`clientes?id=eq.${envio.cliente_id}&select=nombre`);
+  const nombre = (cli && cli[0] && cli[0].nombre) ? cli[0].nombre.trim() : null;
+
+  // Armamos el texto simulado de WhatsApp
+  const saludo = nombre ? `¡Hola ${nombre}!` : '¡Hola!';
+  const titulo = variables.titulo || 'Tenemos una novedad';
+  const detalle = variables.detalle ? `\n${variables.detalle}` : '';
+  const vigencia = variables.vigencia ? `\n\n*Válido:* ${variables.vigencia}` : '';
+
+  const textoMensaje = `${saludo} 📢 *${titulo}*${detalle}${vigencia}`;
+
+  return {
+    ok: true,
+    waMessageId: `SIM-${envio.id}`,
+    texto: textoMensaje,
+  };
 }
 
 async function main() {
@@ -50,7 +70,7 @@ async function main() {
       try {
         const r = await enviar(envio);
         cambio = r.ok
-          ? { estado: 'enviado', wa_message_id: r.waMessageId }
+          ? { estado: 'enviado', wa_message_id: r.waMessageId, texto: r.texto }
           : { estado: 'fallido', error: r.error || 'error desconocido' };
       } catch {
         cambio = { estado: 'fallido', error: 'excepcion al enviar' };
